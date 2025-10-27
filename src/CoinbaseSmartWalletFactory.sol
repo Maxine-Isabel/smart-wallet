@@ -27,9 +27,6 @@ contract CoinbaseSmartWalletFactory {
     /// @notice Thrown when trying to create a new `CoinbaseSmartWallet` account without any owner.
     error OwnerRequired();
 
-    /// @notice Thrown when post-deployment instructions (e.g. module setup) fail.
-    error ModuleInitializationFailed();
-
     /// @notice Factory constructor used to initialize the implementation address to use for future
     ///         CoinbaseSmartWallet deployments.
     ///
@@ -68,36 +65,6 @@ contract CoinbaseSmartWalletFactory {
         if (!alreadyDeployed) {
             emit AccountCreated(address(account), owners, nonce);
             account.initialize(owners);
-        }
-    }
-
-    /// @notice Overloaded createAccount allowing one-shot post-deployment instructions
-    /// @dev `instructions` are executed via a low-level call to the account proxy after initialization.
-    ///      It's the caller's responsibility to ensure the instructions are authorized (e.g. signed by owner(s))
-    ///      to avoid griefing/front-running concerns.
-    function createAccount(
-        bytes[] calldata owners,
-        uint256 nonce,
-        bytes calldata instructions
-    ) external payable virtual returns (CoinbaseSmartWallet account) {
-        if (owners.length == 0) {
-            revert OwnerRequired();
-        }
-
-        (bool alreadyDeployed, address accountAddress) =
-            LibClone.createDeterministicERC1967(msg.value, implementation, _getSalt(owners, nonce));
-
-        account = CoinbaseSmartWallet(payable(accountAddress));
-
-        if (!alreadyDeployed) {
-            emit AccountCreated(address(account), owners, nonce);
-            account.initialize(owners);
-
-            if (instructions.length > 0) {
-                // Execute instructions on the newly-created account. Revert if the call fails.
-                (bool success, ) = accountAddress.call(instructions);
-                if (!success) revert ModuleInitializationFailed();
-            }
         }
     }
 
