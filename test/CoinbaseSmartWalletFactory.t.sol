@@ -103,4 +103,34 @@ contract CoinbaseSmartWalletFactoryTest is Test {
         bytes32 factoryHash = factory.initCodeHash();
         assertEq(factoryHash, execptedHash);
     }
+
+    // --- New tests for overloaded createAccount with instructions ---
+
+    function test_createAccountWithInstructions_callsEntryPointSelectorSucceeds() public {
+        uint256 nonce = 123;
+        address expectedAddress = factory.getAddress(owners, nonce);
+
+        // entryPoint() is a public view on the account that should succeed when called
+        bytes memory instructions = abi.encodeWithSelector(CoinbaseSmartWallet.entryPoint.selector);
+
+        CoinbaseSmartWallet a = factory.createAccount{value: 1e18}(owners, nonce, instructions);
+        assertEq(address(a), expectedAddress);
+        // ensure owners were set
+        assert(a.isOwnerAddress(address(1)));
+        assert(a.isOwnerAddress(address(2)));
+    }
+
+    function test_createAccountWithInstructions_emptyInstructionsSucceeds() public {
+        uint256 nonce = 124;
+        CoinbaseSmartWallet a = factory.createAccount{value: 1e18}(owners, nonce, "");
+        assert(a.isOwnerAddress(address(1)));
+    }
+
+    function test_createAccountWithInstructions_revertsWhenInstructionCallFails() public {
+        uint256 nonce = 125;
+        // Use a call that the factory (not owner/entrypoint) cannot execute, which should revert
+        bytes memory bad = abi.encodeWithSelector(CoinbaseSmartWallet.execute.selector, address(0), uint256(0), hex"00");
+        vm.expectRevert(CoinbaseSmartWalletFactory.ModuleInitializationFailed.selector);
+        factory.createAccount{value: 1e18}(owners, nonce, bad);
+    }
 }
